@@ -22,10 +22,19 @@ OUTPUT_DIR = Path("data/videos")
 # where the name "Dunham" is spoken frequently.
 # yt-dlp supports "ytsearchN:" prefix to grab the first N results.
 SEARCH_QUERIES = [
-    # Official-ish clips and fan compilations
-    "ytsearch3:fringe olivia dunham scene season 1",
-    "ytsearch2:fringe agent dunham walter bishop clip",
-    "ytsearch2:fringe pilot scene dunham FBI",
+    # Cast a wide net — the name "Dunham" gets said constantly in Fringe
+    "ytsearch5:fringe olivia dunham scene season 1",
+    "ytsearch5:fringe agent dunham walter bishop clip",
+    "ytsearch5:fringe pilot scene dunham FBI",
+    "ytsearch5:fringe dunham interrogation scene",
+    "ytsearch5:fringe olivia dunham best moments",
+    "ytsearch5:fringe dunham and broyles scene",
+    "ytsearch5:fringe season 2 olivia dunham",
+    "ytsearch5:fringe season 3 olivia dunham",
+    "ytsearch3:fringe dunham cortexiphan",
+    "ytsearch3:fringe olivia peter scene",
+    "ytsearch3:fringe walter bishop dunham lab",
+    "ytsearch3:fringe astrid dunham scene",
 ]
 
 # Known direct URLs (trailers, promos) — these are more stable than search
