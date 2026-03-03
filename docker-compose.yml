@@ -1,0 +1,5 @@
+services:
+  dunham:
+    build: .
+    volumes:
+      - ./data:/app/data

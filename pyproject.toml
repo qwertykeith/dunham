@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dunham"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "faster-whisper",
+    "click",
+    "jellyfish",
+    "yt-dlp",
+]
+
+[tool.setuptools.packages.find]
+include = ["dunham*"]
+
+[project.scripts]
+dunham = "dunham.cli:cli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
