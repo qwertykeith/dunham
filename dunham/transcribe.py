@@ -8,7 +8,7 @@ from pathlib import Path
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".webm", ".mov"}
 
 
-def _discover_videos(folder: Path) -> list[Path]:
+def discover_videos(folder: Path) -> list[Path]:
     """Walk folder recursively for supported video formats."""
     return sorted(
         p
@@ -38,18 +38,18 @@ def _transcribe_video(video: Path, model_size: str) -> dict:
 
 
 def transcribe_folder(
-    folder: Path,
+    path: Path,
     transcripts_dir: Path,
     model_size: str = "medium",
     force: bool = False,
 ) -> list[Path]:
-    """Transcribe all videos in *folder*, writing JSON transcripts to *transcripts_dir*.
+    """Transcribe videos at *path* (file or folder), writing JSON transcripts to *transcripts_dir*.
 
     Skips videos whose transcript already exists unless *force* is True.
     Returns a list of transcript paths that were created this run.
     """
     transcripts_dir.mkdir(parents=True, exist_ok=True)
-    videos = _discover_videos(folder)
+    videos = [path] if path.is_file() else discover_videos(path)
     created: list[Path] = []
 
     for video in videos:

@@ -82,6 +82,49 @@ def _build_result(
     }
 
 
+def search_transcript(
+    query: str,
+    transcript_path: Path,
+    threshold: int = 2,
+) -> list[dict]:
+    """Search a single transcript JSON file for a word or phrase.
+
+    Returns a list of hit dicts with source, matched word, timestamps,
+    padded clip bounds, and surrounding context.
+    """
+    query_words = query.strip().split()
+    if not query_words:
+        return []
+
+    with open(transcript_path) as f:
+        transcript = json.load(f)
+
+    source = transcript.get("source", transcript_path.stem)
+    results: list[dict] = []
+
+    for segment in transcript.get("segments", []):
+        words = segment.get("words", [])
+        if not words:
+            continue
+
+        segment_text = segment.get("text", "").strip()
+
+        if len(query_words) == 1:
+            for idx in _find_single_word_hits(query_words[0], words, threshold):
+                results.append(
+                    _build_result(source, words, idx, idx, segment_text)
+                )
+        else:
+            for start_idx, end_idx in _find_phrase_hits(
+                query_words, words, threshold
+            ):
+                results.append(
+                    _build_result(source, words, start_idx, end_idx, segment_text)
+                )
+
+    return results
+
+
 def search_transcripts(
     query: str,
     transcripts_dir: Path,
@@ -92,38 +135,7 @@ def search_transcripts(
     Returns a list of hit dicts with source, matched word, timestamps,
     padded clip bounds, and surrounding context.
     """
-    query_words = query.strip().split()
-    if not query_words:
-        return []
-
     results: list[dict] = []
-
     for transcript_path in sorted(transcripts_dir.glob("*.json")):
-        with open(transcript_path) as f:
-            transcript = json.load(f)
-
-        source = transcript.get("source", transcript_path.stem)
-
-        for segment in transcript.get("segments", []):
-            words = segment.get("words", [])
-            if not words:
-                continue
-
-            segment_text = segment.get("text", "").strip()
-
-            if len(query_words) == 1:
-                # Single-word search
-                for idx in _find_single_word_hits(query_words[0], words, threshold):
-                    results.append(
-                        _build_result(source, words, idx, idx, segment_text)
-                    )
-            else:
-                # Phrase search — consecutive matching words
-                for start_idx, end_idx in _find_phrase_hits(
-                    query_words, words, threshold
-                ):
-                    results.append(
-                        _build_result(source, words, start_idx, end_idx, segment_text)
-                    )
-
+        results.extend(search_transcript(query, transcript_path, threshold))
     return results

@@ -19,11 +19,12 @@ Each module (`download.py`, `transcribe.py`, `search.py`, `montage.py`) exposes 
 
 ## Development
 
-- Python 3.11+, venv at `.venv`
-- Install: `pip install -e .`
-- Test: `pytest tests/`
-- Docker: `docker compose build && docker compose run dunham`
+- **Docker is the primary runtime** — do not use local pip install (host may lack Python 3.11+).
+- Build: `docker compose build`
+- Run: `docker compose run dunham <command> [args]`
+- Test: `docker compose run dunham pytest tests/` (or mount a test override)
 - CLI entry point: `dunham` (registered in `pyproject.toml` as `dunham.cli:cli`)
+- The `data/` directory is bind-mounted into the container at `/app/data`.
 
 ## Data Layout
 
@@ -43,3 +44,10 @@ data/
 | `search`     | Fuzzy-search transcripts for a word or phrase   |
 | `montage`    | Stitch clips from a hits JSON into a video      |
 | `run`        | Full pipeline: transcribe -> search -> montage  |
+
+### Example (Docker)
+
+```bash
+docker compose build
+docker compose run dunham run data/videos "olivia"
+```

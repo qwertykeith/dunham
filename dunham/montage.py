@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import tempfile
 from pathlib import Path
+
+
+def _clip_key(source: str, start: float, end: float) -> str:
+    """Deterministic clip filename based on source, start, and end."""
+    stem = Path(source).stem
+    digest = hashlib.sha256(f"{source}|{start}|{end}".encode()).hexdigest()[:12]
+    return f"{stem}_{digest}.mp4"
 
 
 def extract_clip(source: Path, start: float, end: float, output: Path) -> Path:
@@ -32,36 +40,43 @@ def extract_clip(source: Path, start: float, end: float, output: Path) -> Path:
     return output
 
 
-def create_montage(hits: list[dict], videos_dir: Path, output: Path) -> Path:
+def create_montage(
+    hits: list[dict],
+    videos_dir: Path,
+    output: Path,
+    clips_dir: Path | None = None,
+) -> Path:
     """Build a montage by extracting and concatenating clips for each hit.
 
     Each item in *hits* must carry ``source``, ``clip_start`` and ``clip_end``.
-    Temporary clips are cleaned up after the final concatenation.
+
+    When *clips_dir* is ``None`` (default), clips are extracted into a temp
+    directory that is cleaned up automatically.  When provided, clips are
+    cached in that directory — pre-existing clips are skipped — and the
+    caller is responsible for cleanup.
     """
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
+    def _extract_clips(work_dir: Path) -> list[Path]:
         clip_paths: list[Path] = []
-
-        # Extract individual clips
-        for idx, hit in enumerate(hits):
-            clip_path = tmp_dir / f"clip_{idx:04d}.mp4"
-            extract_clip(
-                source=videos_dir / hit["source"],
-                start=hit["clip_start"],
-                end=hit["clip_end"],
-                output=clip_path,
-            )
+        for hit in hits:
+            clip_name = _clip_key(hit["source"], hit["clip_start"], hit["clip_end"])
+            clip_path = work_dir / clip_name
+            if not clip_path.exists():
+                extract_clip(
+                    source=videos_dir / hit["source"],
+                    start=hit["clip_start"],
+                    end=hit["clip_end"],
+                    output=clip_path,
+                )
             clip_paths.append(clip_path)
+        return clip_paths
 
-        # Write concat manifest
-        concat_file = tmp_dir / "concat.txt"
+    def _concat(clip_paths: list[Path], work_dir: Path) -> None:
+        concat_file = work_dir / "concat.txt"
         concat_file.write_text(
-            "\n".join(f"file '{clip}'" for clip in clip_paths) + "\n"
+            "\n".join(f"file '{clip.name}'" for clip in clip_paths) + "\n"
         )
-
-        # Concatenate all clips into the final output
         subprocess.run(
             [
                 "ffmpeg",
@@ -75,5 +90,15 @@ def create_montage(hits: list[dict], videos_dir: Path, output: Path) -> Path:
             check=True,
             capture_output=True,
         )
+
+    if clips_dir is not None:
+        clips_dir.mkdir(parents=True, exist_ok=True)
+        clip_paths = _extract_clips(clips_dir)
+        _concat(clip_paths, clips_dir)
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            clip_paths = _extract_clips(tmp_dir)
+            _concat(clip_paths, tmp_dir)
 
     return output

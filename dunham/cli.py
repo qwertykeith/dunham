@@ -1,14 +1,15 @@
 """CLI entry point for Dunham — the montage supercut machine."""
 
 import json
+import shutil
 from pathlib import Path
 
 import click
 
 from dunham.download import download_video
 from dunham.montage import create_montage
-from dunham.search import search_transcripts
-from dunham.transcribe import transcribe_folder
+from dunham.search import search_transcript, search_transcripts
+from dunham.transcribe import discover_videos, transcribe_folder
 
 
 @click.group()
@@ -17,7 +18,7 @@ def cli():
 
 
 @cli.command()
-@click.argument("folder", type=click.Path(exists=True))
+@click.argument("path", type=click.Path(exists=True))
 @click.option("--model", default="medium", help="Whisper model size.")
 @click.option("--force", is_flag=True, help="Re-transcribe even if output exists.")
 @click.option(
@@ -25,10 +26,10 @@ def cli():
     default="data/transcripts",
     help="Directory to write transcript JSON files.",
 )
-def transcribe(folder: str, model: str, force: bool, transcripts_dir: str):
-    """Transcribe all audio/video files in FOLDER."""
+def transcribe(path: str, model: str, force: bool, transcripts_dir: str):
+    """Transcribe audio/video file or folder at PATH."""
     created = transcribe_folder(
-        Path(folder), Path(transcripts_dir), model_size=model, force=force
+        Path(path), Path(transcripts_dir), model_size=model, force=force
     )
     click.echo(f"Transcribed {len(created)} file(s)")
     for p in created:
@@ -102,7 +103,7 @@ def download(url: str, output_dir: str):
 
 
 @cli.command()
-@click.argument("folder", type=click.Path(exists=True))
+@click.argument("path", type=click.Path(exists=True))
 @click.argument("word")
 @click.option(
     "--output",
@@ -110,24 +111,47 @@ def download(url: str, output_dir: str):
     help="Output path for the montage video.",
 )
 @click.option("--model", default="medium", help="Whisper model size.")
-def run(folder: str, word: str, output: str, model: str):
-    """Full pipeline: transcribe FOLDER, search for WORD, build montage."""
+def run(path: str, word: str, output: str, model: str):
+    """Full pipeline: transcribe PATH (file or folder), search for WORD, build montage.
+
+    Processes each video incrementally — the montage is rebuilt after every
+    video so there's always a usable output even if the process is interrupted.
+    """
+    input_path = Path(path)
     transcripts_dir = Path("data/transcripts")
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
+    videos_dir = input_path.parent if input_path.is_file() else input_path
+    videos = [input_path] if input_path.is_file() else discover_videos(input_path)
+    output_path = Path(output)
+    clips_dir = output_path.parent / ".clips"
 
-    click.echo("Step 1/3: Transcribing...")
-    created = transcribe_folder(
-        Path(folder), transcripts_dir, model_size=model
-    )
-    click.echo(f"  {len(created)} new transcript(s)")
+    all_hits: list[dict] = []
 
-    click.echo("Step 2/3: Searching...")
-    hits = search_transcripts(word, transcripts_dir)
-    click.echo(f"  {len(hits)} hit(s) found")
+    try:
+        for i, video in enumerate(videos, 1):
+            click.echo(f"[{i}/{len(videos)}] {video.name}")
 
-    if not hits:
+            # Transcribe (skips if already done)
+            transcript_path = transcripts_dir / f"{video.stem}.json"
+            created = transcribe_folder(video, transcripts_dir, model_size=model)
+            if created:
+                click.echo("  Transcribed")
+
+            # Search its transcript
+            if transcript_path.exists():
+                hits = search_transcript(word, transcript_path)
+                if hits:
+                    click.echo(f"  {len(hits)} hit(s)")
+                    all_hits.extend(hits)
+
+                    # Rebuild montage incrementally
+                    create_montage(all_hits, videos_dir, output_path, clips_dir=clips_dir)
+                    click.echo(f"  Montage updated ({len(all_hits)} total clips)")
+    finally:
+        if clips_dir.exists():
+            shutil.rmtree(clips_dir)
+
+    if all_hits:
+        click.echo(f"Done! Montage at {output_path} ({len(all_hits)} clips)")
+    else:
         click.echo("No hits — nothing to montage.")
-        return
-
-    click.echo("Step 3/3: Building montage...")
-    out = create_montage(hits, Path(folder), Path(output))
-    click.echo(f"Done! Montage at {out}")

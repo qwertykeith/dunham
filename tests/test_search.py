@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dunham.search import is_match, search_transcripts
+from dunham.search import is_match, search_transcript, search_transcripts
 
 
 # -- is_match unit tests --
@@ -257,6 +257,46 @@ def test_levenshtein_match_in_transcript(tmp_path: Path):
     results = search_transcripts("Dunham", tmp_path, threshold=2)
     assert len(results) == 1
     assert results[0]["word"] == "Dunnam"
+
+
+# -- search_transcript (single file) tests --
+
+
+def test_search_transcript_single_file(tmp_path: Path):
+    """search_transcript should return hits from a single transcript file."""
+    transcript = {
+        "source": "ep01.mp4",
+        "segments": [
+            {
+                "text": "Agent Dunham reporting",
+                "words": [
+                    {"word": "Agent", "start": 0.5, "end": 0.8},
+                    {"word": "Dunham", "start": 0.9, "end": 1.2},
+                    {"word": "reporting", "start": 1.3, "end": 1.6},
+                ],
+            }
+        ],
+    }
+    path = _write_transcript(tmp_path, "ep01.json", transcript)
+
+    results = search_transcript("Dunham", path, threshold=2)
+    assert len(results) == 1
+    assert results[0]["source"] == "ep01.mp4"
+    assert results[0]["word"] == "Dunham"
+
+
+def test_search_transcript_empty_query(tmp_path: Path):
+    transcript = {
+        "source": "test.mp4",
+        "segments": [
+            {
+                "text": "Dunham",
+                "words": [{"word": "Dunham", "start": 0.0, "end": 0.5}],
+            }
+        ],
+    }
+    path = _write_transcript(tmp_path, "test.json", transcript)
+    assert search_transcript("", path) == []
 
 
 # -- Helper --

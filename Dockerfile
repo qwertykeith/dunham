@@ -16,5 +16,7 @@ RUN python -c "from faster_whisper import WhisperModel; WhisperModel('medium')"
 
 # App code (changes frequently — last layer)
 COPY dunham/ dunham/
+# Ensure /app/dunham/ is found before the stub in site-packages
+ENV PYTHONPATH=/app
 
 ENTRYPOINT ["dunham"]

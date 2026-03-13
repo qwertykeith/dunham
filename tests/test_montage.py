@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 from dunham.download import download_video
-from dunham.montage import create_montage, extract_clip
+from dunham.montage import _clip_key, create_montage, extract_clip
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +95,70 @@ def test_create_montage_temp_files_cleaned_up(mock_run: MagicMock, tmp_path: Pat
     # Every temp dir should have been cleaned up
     for d in created_dirs:
         assert not Path(d).exists(), f"Temp directory {d} was not cleaned up"
+
+
+# ---------------------------------------------------------------------------
+# _clip_key
+# ---------------------------------------------------------------------------
+
+
+def test_clip_key_deterministic():
+    """Same inputs should always produce the same key."""
+    key1 = _clip_key("video.mp4", 1.5, 3.0)
+    key2 = _clip_key("video.mp4", 1.5, 3.0)
+    assert key1 == key2
+    assert key1.startswith("video_")
+    assert key1.endswith(".mp4")
+
+
+def test_clip_key_different_for_different_inputs():
+    key1 = _clip_key("video.mp4", 1.5, 3.0)
+    key2 = _clip_key("video.mp4", 1.5, 4.0)
+    key3 = _clip_key("other.mp4", 1.5, 3.0)
+    assert key1 != key2
+    assert key1 != key3
+
+
+# ---------------------------------------------------------------------------
+# clips_dir caching
+# ---------------------------------------------------------------------------
+
+
+@patch("dunham.montage.subprocess.run")
+def test_clips_dir_skips_existing_clips(mock_run: MagicMock, tmp_path: Path):
+    """Pre-existing clips should not be re-extracted when clips_dir is used."""
+    hits = [
+        {"source": "a.mp4", "clip_start": 0.0, "clip_end": 1.0},
+        {"source": "b.mp4", "clip_start": 2.0, "clip_end": 3.0},
+    ]
+    videos_dir = tmp_path / "videos"
+    videos_dir.mkdir()
+    output = tmp_path / "out" / "montage.mp4"
+    clips = tmp_path / "clips"
+    clips.mkdir()
+
+    # Pre-create the clip for the first hit so it should be skipped
+    existing_key = _clip_key("a.mp4", 0.0, 1.0)
+    (clips / existing_key).write_bytes(b"fake clip data")
+
+    create_montage(hits, videos_dir, output, clips_dir=clips)
+
+    # Only one extract call (for b.mp4) + one concat call
+    assert mock_run.call_count == 2
+
+
+@patch("dunham.montage.subprocess.run")
+def test_clips_dir_persists_after_call(mock_run: MagicMock, tmp_path: Path):
+    """When clips_dir is provided, it should not be cleaned up."""
+    hits = [{"source": "a.mp4", "clip_start": 0.0, "clip_end": 1.0}]
+    videos_dir = tmp_path / "videos"
+    videos_dir.mkdir()
+    output = tmp_path / "montage.mp4"
+    clips = tmp_path / "clips"
+
+    create_montage(hits, videos_dir, output, clips_dir=clips)
+
+    assert clips.exists()
 
 
 # ---------------------------------------------------------------------------

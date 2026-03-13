@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from dunham.transcribe import VIDEO_EXTENSIONS, _discover_videos, transcribe_folder
+from dunham.transcribe import VIDEO_EXTENSIONS, discover_videos, transcribe_folder
 
 
 # -- helpers ------------------------------------------------------------------
@@ -40,7 +40,7 @@ def test_discover_finds_supported_extensions(tmp_path: Path):
     _touch_video(tmp_path, "readme.txt")
     _touch_video(tmp_path, "photo.jpg")
 
-    found = _discover_videos(tmp_path)
+    found = discover_videos(tmp_path)
     assert len(found) == len(VIDEO_EXTENSIONS)
     assert all(p.suffix.lower() in VIDEO_EXTENSIONS for p in found)
 
@@ -49,7 +49,7 @@ def test_discover_walks_subdirectories(tmp_path: Path):
     _touch_video(tmp_path / "season1", "ep01.mp4")
     _touch_video(tmp_path / "season2", "ep02.mkv")
 
-    found = _discover_videos(tmp_path)
+    found = discover_videos(tmp_path)
     assert len(found) == 2
 
 
